@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  # MongoDB Standalone (Development)
+  mongo:
+    image: mongo:7.0
+    container_name: iam-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: iam_admin
+      MONGO_INITDB_ROOT_PASSWORD: IamAdmin123
+      MONGO_INITDB_DATABASE: iam_chat_db
+    volumes:
+      - mongo_data:/data/db
+      - ./init:/docker-entrypoint-initdb.d
+      - ./config/mongod.conf:/etc/mongod.conf
+    command: mongod --config /etc/mongod.conf
+    networks:
+      - iam-network
+
+  # MongoDB Replica Set (Production)
+  mongo-primary:
+    image: mongo:7.0
+    container_name: iam-mongo-primary
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: iam_admin
+      MONGO_INITDB_ROOT_PASSWORD: IamAdmin123
+    volumes:
+      - mongo_primary_data:/data/db
+      - ./config/replica-set.js:/docker-entrypoint-initdb.d/replica-set.js
+    command: mongod --replSet iam-rs --bind_ip_all
+    networks:
+      - iam-network
+
+  mongo-secondary1:
+    image: mongo:7.0
+    container_name: iam-mongo-secondary1
+    restart: unless-stopped
+    ports:
+      - "27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: iam_admin
+      MONGO_INITDB_ROOT_PASSWORD: IamAdmin123
+    volumes:
+      - mongo_secondary1_data:/data/db
+    command: mongod --replSet iam-rs --bind_ip_all
+    depends_on:
+      - mongo-primary
+    networks:
+      - iam-network
+
+  mongo-secondary2:
+    image: mongo:7.0
+    container_name: iam-mongo-secondary2
+    restart: unless-stopped
+    ports:
+      - "27019:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: iam_admin
+      MONGO_INITDB_ROOT_PASSWORD: IamAdmin123
+    volumes:
+      - mongo_secondary2_data:/data/db
+    command: mongod --replSet iam-rs --bind_ip_all
+    depends_on:
+      - mongo-primary
+    networks:
+      - iam-network
+
+  # MongoDB Express (Admin UI)
+  mongo-express:
+    image: mongo-express:1.0.0
+    container_name: iam-mongo-express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: iam_admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: IamAdmin123
+      ME_CONFIG_MONGODB_URL: mongodb://iam_admin:IamAdmin123@mongo:27017/
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+    depends_on:
+      - mongo
+    networks:
+      - iam-network
+
+volumes:
+  mongo_data:
+  mongo_primary_data:
+  mongo_secondary1_data:
+  mongo_secondary2_data:
+
+networks:
+  iam-network:
+    external: true
